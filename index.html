@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A1A33">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Cold Sense — Monitoreo en vivo</title>
+<style>
+  :root{
+    --navy:#0A1A33; --fondo:#081527; --panel:#0F2440; --panel2:#14304F; --line:#1C3E5C;
+    --esmeralda:#12A37E; --hielo:#5BBFB5; --texto:#C8DCF0; --tenue:#8EACC4;
+    --ambar:#E8A33D; --rojo:#E5614F; --blanco:#F7FAFC;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+    --r:18px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:var(--sans);
+    background:radial-gradient(120% 70% at 50% -10%,#0E2A46 0%,transparent 60%),var(--fondo);
+    background-attachment:fixed;
+    color:var(--texto);min-height:100vh;overflow-x:hidden;
+    font-feature-settings:"tnum" 1;padding-bottom:40px;
+  }
+  .contenedor{width:100%;max-width:560px;margin:0 auto;padding:0 16px}
+
+  /* ══ Encabezado ══════════════════════════════════ */
+  .cabecera{position:sticky;top:0;z-index:20;background:rgba(8,21,39,.88);
+            backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+  .cabecera .contenedor{display:flex;align-items:center;gap:11px;padding-top:13px;padding-bottom:13px}
+  .pingu{width:32px;height:32px;flex-shrink:0}
+  .marca .n{font-size:18px;font-weight:800;letter-spacing:-.4px;color:var(--blanco);line-height:1.1}
+  .marca .n span{font-weight:300}
+  .marca .s{font-size:8.5px;letter-spacing:2px;text-transform:uppercase;color:var(--tenue);margin-top:3px}
+  .estado-red{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+  .vivo{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;
+        letter-spacing:.6px;color:var(--esmeralda);text-transform:uppercase;font-weight:600}
+  .vivo .pt{width:7px;height:7px;border-radius:50%;background:var(--esmeralda);animation:lat 1.9s infinite}
+  .vivo.frio{color:var(--tenue)} .vivo.frio .pt{background:var(--tenue);animation:none}
+  .fuente{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--tenue);font-family:var(--mono)}
+  .fuente.demo{color:var(--ambar)}
+  @keyframes lat{0%{box-shadow:0 0 0 0 rgba(18,163,126,.5)}70%{box-shadow:0 0 0 9px rgba(18,163,126,0)}100%{box-shadow:0 0 0 0 rgba(18,163,126,0)}}
+
+  /* ══ Rejilla ═════════════════════════════════════ */
+  .tablero{display:grid;gap:11px;margin-top:14px}
+  .col-a,.col-b{display:grid;gap:11px;align-content:start}
+  .tarjeta{background:linear-gradient(180deg,var(--panel) 0%,#0D2039 100%);
+           border:1px solid var(--line);border-radius:var(--r);padding:17px;position:relative;overflow:hidden}
+  .rotulo{font-size:9.5px;letter-spacing:1.8px;text-transform:uppercase;color:var(--tenue);
+          font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .rotulo::after{content:"";flex:1;height:1px;background:var(--line)}
+
+  /* ══ Instrumento ═════════════════════════════════ */
+  .instrumento::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(85% 55% at 50% 0%,rgba(91,191,181,.11),transparent 68%)}
+  .eq-nombre{font-size:14px;font-weight:700;color:var(--blanco);letter-spacing:-.2px}
+  .eq-id{font-family:var(--mono);font-size:10.5px;color:var(--hielo);letter-spacing:.4px;margin-top:2px}
+  .lectura{display:flex;align-items:baseline;gap:3px;font-family:var(--mono);margin-top:14px}
+  .lectura .t{font-size:66px;font-weight:700;line-height:.84;letter-spacing:-3.5px;color:var(--blanco);transition:color .4s}
+  .lectura .u{font-size:24px;font-weight:500;color:var(--tenue)}
+  .lectura.alerta .t{color:var(--rojo)} .lectura.advertencia .t{color:var(--ambar)}
+  .fila{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
+  .sello{padding:5px 11px;border-radius:8px;font-size:11.5px;font-weight:700}
+  .sello.normal{background:rgba(18,163,126,.16);color:var(--esmeralda)}
+  .sello.advertencia{background:rgba(232,163,61,.17);color:var(--ambar)}
+  .sello.alerta{background:rgba(229,97,79,.17);color:var(--rojo)}
+  .sello.sin_datos{background:rgba(142,172,196,.14);color:var(--tenue)}
+  .dato-mini{font-family:var(--mono);font-size:11px;color:var(--tenue)}
+  .dato-mini b{color:var(--texto);font-weight:600}
+
+  .grafica{margin-top:16px;position:relative}
+  .grafica svg{display:block;width:100%;height:132px}
+  .ejes{position:absolute;inset:0;pointer-events:none;font-family:var(--mono);font-size:9px;color:var(--tenue)}
+  .ejes .arriba{position:absolute;top:0;left:0}
+  .ejes .abajo{position:absolute;bottom:0;left:0}
+  .leyenda{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:9.5px;
+           color:var(--tenue);margin-top:9px;letter-spacing:.3px}
+  .leyenda i{font-style:normal;display:flex;align-items:center;gap:5px}
+  .mx{width:15px;height:2.5px;background:var(--hielo);border-radius:2px}
+  .mb{width:15px;border-top:2px dashed var(--tenue)}
+  .mz{width:15px;height:9px;background:rgba(18,163,126,.22);
+      border-top:1px solid rgba(18,163,126,.5);border-bottom:1px solid rgba(18,163,126,.5)}
+
+  .franja{display:flex;gap:1.5px;height:9px;margin-top:13px;border-radius:3px;overflow:hidden}
+  .franja span{flex:1;border-radius:1px}
+  .franja-pie{display:flex;justify-content:space-between;font-family:var(--mono);
+              font-size:9px;color:var(--tenue);margin-top:5px}
+
+  /* ══ Métricas ════════════════════════════════════ */
+  .metricas{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .metrica{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 14px}
+  .metrica .k{font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--tenue);margin-bottom:6px}
+  .metrica .v{font-family:var(--mono);font-size:21px;font-weight:700;color:var(--blanco);letter-spacing:-.6px}
+  .metrica .v small{font-size:11px;color:var(--tenue);font-weight:400;letter-spacing:0}
+
+  .medidor{display:flex;align-items:center;gap:15px}
+  .medidor svg{width:82px;height:82px;flex-shrink:0}
+  .medidor .g{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--blanco);letter-spacing:-1px}
+  .medidor .d{font-size:11.5px;color:var(--tenue);line-height:1.45;margin-top:3px}
+
+  /* ══ Equipos ═════════════════════════════════════ */
+  .lista-equipos{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:9px}
+  .eq-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;
+           cursor:pointer;transition:border-color .18s,background .18s;text-align:left;
+           font-family:inherit;color:inherit;width:100%;display:block}
+  .eq-card:hover{background:var(--panel2)}
+  .eq-card.activo{border-color:var(--hielo);background:var(--panel2)}
+  .eq-card:focus-visible{outline:2px solid var(--hielo);outline-offset:2px}
+  .eq-card .top{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+  .eq-card .pt{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+  .eq-card .nm{font-size:11px;font-weight:600;color:var(--texto);overflow:hidden;
+               text-overflow:ellipsis;white-space:nowrap}
+  .eq-card .tm{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--blanco);letter-spacing:-1px}
+  .eq-card .tm small{font-size:11px;color:var(--tenue);font-weight:400}
+  .eq-card svg{width:100%;height:26px;margin-top:7px;display:block}
+
+  /* ══ Análisis ════════════════════════════════════ */
+  .barra{height:7px;background:rgba(142,172,196,.16);border-radius:4px;overflow:hidden;margin-top:7px}
+  .barra i{display:block;height:100%;border-radius:4px;transition:width .5s ease}
+  .an-fila{margin-bottom:15px} .an-fila:last-child{margin-bottom:0}
+  .an-fila .h{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px}
+  .an-fila .h b{font-family:var(--mono);font-size:12.5px;color:var(--blanco);font-weight:700}
+  .puntos{display:flex;gap:5px;margin-top:8px}
+  .puntos i{width:100%;height:7px;border-radius:3px}
+
+  /* ══ Decisión y alertas ══════════════════════════ */
+  .decision{background:linear-gradient(135deg,rgba(18,163,126,.15),rgba(91,191,181,.05));
+            border-left:3px solid var(--esmeralda)}
+  .decision.advertencia{border-left-color:var(--ambar);
+    background:linear-gradient(135deg,rgba(232,163,61,.13),rgba(232,163,61,.03))}
+  .decision.alerta{border-left-color:var(--rojo);
+    background:linear-gradient(135deg,rgba(229,97,79,.14),rgba(229,97,79,.03))}
+  .decision .b{font-size:14px;line-height:1.55;color:var(--texto)}
+
+  .alerta-item{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--ambar);
+               border-radius:13px;padding:13px 15px;margin-bottom:8px}
+  .alerta-item:last-child{margin-bottom:0}
+  .alerta-item.alerta{border-left-color:var(--rojo)}
+  .alerta-item .t{font-size:13px;font-weight:700;color:var(--blanco);margin-bottom:4px;
+                  display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+  .alerta-item .t .hora{font-family:var(--mono);font-size:10px;font-weight:400;color:var(--tenue);flex-shrink:0}
+  .alerta-item .d{font-size:12.5px;line-height:1.5;opacity:.9}
+  .alerta-item .a{display:inline-block;margin-top:9px;font-size:10.5px;font-weight:700;letter-spacing:.4px;
+                  color:var(--hielo);border:1px solid var(--line);border-radius:7px;padding:5px 10px}
+  .vacio{font-size:12.5px;color:var(--tenue);padding:18px;text-align:center;
+         border:1px dashed var(--line);border-radius:13px;line-height:1.55}
+
+  footer{text-align:center;padding:24px 16px 8px;font-size:9.5px;color:var(--tenue);
+         line-height:1.8;font-family:var(--mono);letter-spacing:.4px}
+  .fade{animation:f .35s ease}
+  @keyframes f{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  /* ══ Tablet ══════════════════════════════════════ */
+  @media (min-width:760px){
+    .contenedor{max-width:1080px;padding:0 24px}
+    .tablero{grid-template-columns:1.55fr 1fr;gap:14px;margin-top:20px;align-items:start}
+    .col-a,.col-b{gap:14px}
+    .col-b{position:sticky;top:84px}
+    .lectura .t{font-size:88px} .lectura .u{font-size:30px}
+    .grafica svg{height:190px}
+    .tarjeta{padding:20px}
+    .marca .n{font-size:20px}
+    .lista-equipos{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+  }
+  /* ══ Pantalla grande / kiosco ════════════════════ */
+  @media (min-width:1200px){
+    .contenedor{max-width:1240px}
+    .lectura .t{font-size:100px}
+    .grafica svg{height:220px}
+  }
+</style>
+</head>
+<body>
+
+<div class="cabecera">
+  <div class="contenedor">
+    <svg class="pingu" viewBox="0 0 64 64" aria-hidden="true">
+      <ellipse cx="38" cy="54" rx="20" ry="4" fill="#12A37E"/>
+      <path d="M38 8c8 0 13 7 13 16 0 6-1 11-1 16 0 6 3 10 3 12H26c-2 0-4-2-4-5 0-9 4-14 4-23C26 15 30 8 38 8z" fill="#F7FAFC"/>
+      <circle cx="43" cy="19" r="2" fill="#0A1A33"/>
+      <path d="M50 22l7 2-7 3z" fill="#12A37E"/>
+      <path d="M8 20h12M4 27h14M10 34h11" stroke="#12A37E" stroke-width="3.4" stroke-linecap="round"/>
+    </svg>
+    <div class="marca">
+      <div class="n">Cold<span> Sense</span></div>
+      <div class="s">Más control, menos consumo</div>
+    </div>
+    <div class="estado-red">
+      <div class="vivo frio" id="vivo"><span class="pt"></span><span id="vivoTxt">conectando</span></div>
+      <div class="fuente" id="fuente">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="contenedor">
+  <div class="tablero" id="tablero">
+    <div class="tarjeta"><div class="vacio">Conectando con la plataforma…</div></div>
+  </div>
+  <footer>Cold Sense · UNAM FCA · Prototipo funcional<br><span id="meta">—</span></footer>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let datos = null, seleccion = null;
+
+const ETIQUETA = {NORMAL:'En rango', ADVERTENCIA:'Atención', ALERTA:'Fuera de rango', SIN_DATOS:'Sin datos'};
+const COLOR = e => e==='ALERTA' ? 'var(--rojo)' : e==='ADVERTENCIA' ? 'var(--ambar)' : 'var(--esmeralda)';
+const hora = ts => new Date(ts).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+/* Gráfica: banda objetivo + patrón normal + medición */
+function grafica(eq){
+  const W=600,H=200,P=10, s=eq.serie||[];
+  if(s.length<2) return '<div class="grafica"><svg viewBox="0 0 600 200"></svg></div>';
+  const temps=s.map(p=>p.t), bases=s.map(p=>p.base);
+  let lo=Math.min(...temps,...bases,eq.rango.min), hi=Math.max(...temps,...bases,eq.rango.max);
+  const pad=Math.max(.7,(hi-lo)*.16); lo-=pad; hi+=pad;
+  const x=i=>P+(i/(s.length-1))*(W-2*P), y=v=>P+(1-(v-lo)/(hi-lo))*(H-2*P);
+  const d=a=>a.map((v,i)=>`${i?'L':'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
+  const yA=y(eq.rango.max), yB=y(eq.rango.min);
+  const bT=Math.max(P,Math.min(yA,yB)), bH=Math.max(1,Math.abs(yB-yA));
+  const c=COLOR(eq.estado);
+  const relleno=`${d(temps)} L${x(s.length-1).toFixed(1)} ${H-P} L${x(0).toFixed(1)} ${H-P} Z`;
+  const mins=Math.round((s[s.length-1].ts-s[0].ts)/60000);
+  return `<div class="grafica">
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Temperatura reciente">
+      <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${c}" stop-opacity=".26"/>
+        <stop offset="100%" stop-color="${c}" stop-opacity="0"/></linearGradient></defs>
+      <rect x="0" y="${bT.toFixed(1)}" width="${W}" height="${bH.toFixed(1)}" fill="rgba(18,163,126,.13)"/>
+      <line x1="0" y1="${bT.toFixed(1)}" x2="${W}" y2="${bT.toFixed(1)}" stroke="rgba(18,163,126,.5)"/>
+      <line x1="0" y1="${(bT+bH).toFixed(1)}" x2="${W}" y2="${(bT+bH).toFixed(1)}" stroke="rgba(18,163,126,.5)"/>
+      <path d="${relleno}" fill="url(#g)"/>
+      <path d="${d(bases)}" fill="none" stroke="var(--tenue)" stroke-width="1.5" stroke-dasharray="5 5"
+            opacity=".8" vector-effect="non-scaling-stroke"/>
+      <path d="${d(temps)}" fill="none" stroke="${c}" stroke-width="2.4" stroke-linejoin="round"
+            stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+      <circle cx="${x(s.length-1).toFixed(1)}" cy="${y(temps[temps.length-1]).toFixed(1)}" r="4" fill="${c}"/>
+    </svg>
+    <div class="ejes">
+      <span class="arriba">máx ${Math.max(...temps).toFixed(1)} °C</span>
+      <span class="abajo">mín ${Math.min(...temps).toFixed(1)} °C · últimos ${mins||'<1'} min</span>
+    </div></div>
+    <div class="leyenda">
+      <i><span class="mx"></span>medición</i>
+      <i><span class="mb"></span>su patrón normal</i>
+      <i><span class="mz"></span>rango objetivo</i>
+    </div>`;
+}
+
+function franja(eq){
+  const s=(eq.serie||[]).slice(-60);
+  if(!s.length) return '';
+  return `<div class="franja">${s.map(p=>
+    `<span style="background:${COLOR(p.estado)};opacity:${p.estado==='NORMAL'?.5:1}"></span>`).join('')}</div>
+    <div class="franja-pie"><span>${hora(s[0].ts)}</span><span>ahora</span></div>`;
+}
+
+function chispa(eq){
+  const s=(eq.serie||[]).slice(-46);
+  if(s.length<2) return '';
+  const t=s.map(p=>p.t); let lo=Math.min(...t),hi=Math.max(...t);
+  if(hi-lo<.5){const m=(hi+lo)/2;lo=m-.25;hi=m+.25;}
+  const d=t.map((v,i)=>`${i?'L':'M'}${(i/(t.length-1)*100).toFixed(1)} ${(24-((v-lo)/(hi-lo))*20).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="none"
+    stroke="${COLOR(eq.estado)}" stroke-width="1.8" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+function medidor(e){
+  const p=Math.min(100,e.energia.cicloTrabajo||0), C=2*Math.PI*34;
+  const c=p>70?'var(--ambar)':p>0?'var(--esmeralda)':'var(--tenue)';
+  const nota=!e.energia.listo?'Reuniendo lecturas para calcular el ciclo.'
+    :p>70?'Trabaja de más. Revisa condensador y empaques.'
+    :p<25?'Mantiene su temperatura sin esforzarse.'
+    :'Ciclo dentro de lo esperado para este equipo.';
+  return `<div class="medidor">
+    <svg viewBox="0 0 80 80" role="img" aria-label="Ciclo de compresor ${p} por ciento">
+      <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(142,172,196,.18)" stroke-width="7"/>
+      <circle cx="40" cy="40" r="34" fill="none" stroke="${c}" stroke-width="7" stroke-linecap="round"
+        stroke-dasharray="${(C*p/100).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 40 40)"/>
+    </svg>
+    <div><div class="g">${p}%</div><div class="d">${nota}</div></div></div>`;
+}
+
+function pintar(){
+  if(!datos||!datos.equipos.length) return;
+  if(!seleccion||!datos.equipos.find(e=>e.id===seleccion)) seleccion=datos.equipos[0].id;
+  const e=datos.equipos.find(x=>x.id===seleccion);
+  const cls=e.estado.toLowerCase();
+  const t=e.temperatura===null?'—':e.temperatura.toFixed(1);
+  const an=e.analisis||{desviacion:0,umbral:1.5,consecutivas:0,requeridas:4};
+  const pct=Math.min(100,(an.desviacion/an.umbral)*100);
+
+  $('#tablero').innerHTML=`
+  <div class="col-a">
+    <div class="tarjeta instrumento fade">
+      <div class="eq-nombre">${e.nombre}</div>
+      <div class="eq-id">${e.id} · objetivo ${e.rango.min} a ${e.rango.max} °C</div>
+      <div class="lectura ${cls}"><span class="t">${t}</span><span class="u">°C</span></div>
+      <div class="fila">
+        <span class="sello ${cls}">${ETIQUETA[e.estado]||e.estado}</span>
+        ${e.humedad!=null?`<span class="dato-mini">HR <b>${Number(e.humedad).toFixed(0)}%</b></span>`:''}
+        <span class="dato-mini">patrón <b>${e.base!=null?e.base.toFixed(1):'—'} °C</b></span>
+        <span class="dato-mini">${e.muestras} lecturas</span>
+      </div>
+      ${grafica(e)}${franja(e)}
+    </div>
+
+    <div class="tarjeta fade">
+      <div class="rotulo">Todos los equipos</div>
+      <div class="lista-equipos">
+        ${datos.equipos.map(q=>`
+          <button class="eq-card ${q.id===seleccion?'activo':''}" data-id="${q.id}">
+            <div class="top"><span class="pt" style="background:${COLOR(q.estado)}"></span>
+              <span class="nm">${q.nombre}</span></div>
+            <div class="tm">${q.temperatura!=null?q.temperatura.toFixed(1):'—'}<small> °C</small></div>
+            ${chispa(q)}
+          </button>`).join('')}
+      </div>
+    </div>
+
+    <div class="tarjeta fade">
+      <div class="rotulo">Alertas</div>
+      ${e.alertas.length?e.alertas.map(a=>`
+        <div class="alerta-item ${a.estado.toLowerCase()}">
+          <div class="t">${a.titulo}<span class="hora">${hora(a.ts)}</span></div>
+          <div class="d">${a.detalle}</div>
+          <span class="a">${a.accion}</span>
+        </div>`).join('')
+        :`<div class="vacio">Sin alertas. El equipo se mantiene dentro de su patrón.</div>`}
+    </div>
+  </div>
+
+  <div class="col-b">
+    <div class="tarjeta decision ${cls} fade">
+      <div class="rotulo">Qué hacer con esto</div>
+      <div class="b">${e.recomendacion}</div>
+    </div>
+
+    <div class="metricas fade">
+      <div class="metrica"><div class="k">Consumo estimado</div>
+        <div class="v">${e.energia.kWhDia}<small> kWh/día</small></div></div>
+      <div class="metrica"><div class="k">Costo eléctrico</div>
+        <div class="v">$${e.energia.costoMesMXN}<small> /mes</small></div></div>
+      <div class="metrica"><div class="k">Arranques</div>
+        <div class="v">${e.energia.arranques}</div></div>
+      <div class="metrica"><div class="k">Humedad</div>
+        <div class="v">${e.humedad!=null?Number(e.humedad).toFixed(0):'—'}<small> %</small></div></div>
+    </div>
+
+    <div class="tarjeta fade">
+      <div class="rotulo">Ciclo de compresor</div>
+      ${medidor(e)}
+    </div>
+
+    <div class="tarjeta fade">
+      <div class="rotulo">Qué está viendo el análisis</div>
+      <div class="an-fila">
+        <div class="h"><span>Separación de su patrón</span><b>${an.desviacion} °C</b></div>
+        <div class="barra"><i style="width:${pct.toFixed(0)}%;background:${COLOR(e.estado)}"></i></div>
+        <div class="dato-mini" style="margin-top:6px">Avisa al llegar a ${an.umbral} °C</div>
+      </div>
+      <div class="an-fila">
+        <div class="h"><span>Confirmación</span><b>${Math.min(an.consecutivas,an.requeridas)} de ${an.requeridas}</b></div>
+        <div class="puntos">${Array.from({length:an.requeridas},(_,i)=>
+          `<i style="background:${i<an.consecutivas?COLOR(e.estado):'rgba(142,172,196,.16)'}"></i>`).join('')}</div>
+        <div class="dato-mini" style="margin-top:6px">Se necesitan ${an.requeridas} lecturas seguidas fuera de patrón antes de avisar, para no molestar por ruido.</div>
+      </div>
+    </div>
+  </div>`;
+
+  $('#tablero').querySelectorAll('.eq-card').forEach(b=>
+    b.onclick=()=>{seleccion=b.dataset.id;pintar();});
+
+  const f=$('#fuente'), real=datos.fuente==='dispositivo';
+  f.textContent=real?'dispositivo real':'modo demostración';
+  f.classList.toggle('demo',!real);
+  $('#meta').textContent=`${datos.lecturas} lecturas · ${datos.equipos.length} equipo${datos.equipos.length>1?'s':''} · última ${e.ts?hora(e.ts):'—'}`;
+}
+
+function conectado(si){
+  $('#vivo').classList.toggle('frio',!si);
+  $('#vivoTxt').textContent=si?'en vivo':'reconectando';
+}
+
+(function arrancar(){
+  let fuente;
+  try{
+    fuente=new EventSource('/api/stream');
+    fuente.onopen=()=>conectado(true);
+    fuente.onmessage=ev=>{datos=JSON.parse(ev.data);conectado(true);pintar();};
+    fuente.onerror=()=>conectado(false);
+  }catch(_){conectado(false);}
+  setInterval(async()=>{
+    if(fuente&&fuente.readyState===1) return;
+    try{
+      const r=await fetch('/api/estado',{cache:'no-store'});
+      datos=await r.json();conectado(true);pintar();
+    }catch(_){conectado(false);}
+  },4000);
+})();
+</script>
+</body>
+</html>
